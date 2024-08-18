@@ -1,5 +1,5 @@
 const fs = require("fs");
-const path = "/data/transactions.txt";
+const path = "/data/transactions.txt"; // Assuming transactions.txt file contains the provided input
 const resultsPath = "/data/results.txt";
 const requiredDeposits = [100, 500, 1000];
 const requiredBets = [50, 250, 500];
@@ -8,10 +8,9 @@ class Casino {
   constructor() {
     this.users = {};
     this.scenarios = [];
-    this.betCountParity = 0; // yoveli meore bet-is dros iqneba 1, sxva dros 0.
+    this.betCountParity = 0; // Every second bet will have a different outcome.
   }
 
-  // amowmebs momxmarebeli da tanxa tu aris sworad shemotanili
   validate(user_id, amount = 0, msg = "") {
     if (!this.users[user_id]) {
       console.log("aseti momxmarebeli ar arsebobs");
@@ -28,8 +27,8 @@ class Casino {
     if (!this.users[user_id]) {
       this.users[user_id] = {
         balance: 0,
-        scenario: -1, // scenario masivi romelic am momxmarebels ekutvnis
-        scenarioInd: 0, // romeli prizis jeria scenarioshi
+        scenario: -1,
+        scenarioInd: 0,
         maxDeposit: 0,
         totalBet: 0,
       };
@@ -51,30 +50,32 @@ class Casino {
 
   deposit(user_id, amount) {
     amount = parseInt(amount);
-    if (
-      !this.validate(
-        user_id,
-        amount,
-        "ar shegidzlia shemoitano uaryopiti raodenobis tanxa"
-      )
-    ) {
+    if (!this.validate(user_id, amount, "ar shegidzlia shemoitano uaryopiti raodenobis tanxa")) {
       return;
     }
     const currUser = this.users[user_id];
     currUser.balance += amount;
-    currUser.maxDeposit = Math.max(currUser.maxDeposit, amount); // itvlis maqsimalur depozits rom vnaxot minimum 100 (an 500 an 1000) lari tu aris shemotanili
+    currUser.maxDeposit = Math.max(currUser.maxDeposit, amount);
+  }
+
+  withdraw(user_id, amount) {
+    amount = parseInt(amount);
+    if (!this.validate(user_id, amount, "ar shegidzlia amoigo uaryopiti tanxa")) {
+      return;
+    }
+    const currUser = this.users[user_id];
+    if (currUser.balance < amount) {
+      console.log("ar gaqvs sakmarisi tanxa gamosatani");
+      return;
+    }
+    currUser.balance -= amount;
+    console.log(`${amount} lari gamoitana!`);
   }
 
   bet(user_id, game, amount) {
     game = game.toLowerCase();
     amount = parseInt(amount);
-    if (
-      !this.validate(
-        user_id,
-        amount,
-        "ar shegidzlia chamoxvide uaryopiti raodenobis tanxas"
-      )
-    ) {
+    if (!this.validate(user_id, amount, "ar shegidzlia chamoxvide uaryopiti raodenobis tanxas")) {
       return;
     }
     const currUser = this.users[user_id];
@@ -84,15 +85,14 @@ class Casino {
     }
     currUser.totalBet += amount;
     if (this.betCountParity == 0) {
-      // ese igi es beti iyo momgebiani
-      currUser.balance += amount;
+      currUser.balance += amount; // winning scenario
     } else {
-      currUser.balance -= amount;
+      currUser.balance -= amount; // losing scenario
     }
     if (game === "slot" || game === "slots") {
       this.checkCampaign(user_id);
     }
-    this.betCountParity = 1 - this.betCountParity;
+    this.betCountParity = 1 - this.betCountParity; // Toggle bet outcome
   }
 
   balance(user_id) {
@@ -102,25 +102,18 @@ class Casino {
     return this.users[user_id].balance;
   }
 
-  // amowmebs kampaniis pirobas
   checkCampaign(user_id) {
     let hasPrize = false;
     const currUser = this.users[user_id];
     if (currUser.scenarioInd >= requiredDeposits.length) {
-      // yvela prizi miigo ukve, mets vegar miigebs
       return;
     }
-    if (
-      currUser.maxDeposit >= requiredDeposits[currUser.scenarioInd] &&
-      currUser.totalBet >= requiredBets[currUser.scenarioInd]
-    ) {
-      // tu akmayopilebs kampaniis pirobebs (minimalur depozits da jamur bets) ese igi prizi moigo
+    if (currUser.maxDeposit >= requiredDeposits[currUser.scenarioInd] &&
+        currUser.totalBet >= requiredBets[currUser.scenarioInd]) {
       hasPrize = true;
     }
     if (currUser.scenario == -1 && hasPrize) {
-      // tu momxmarebels aqamde scenario ar hqonda da moigo scenario unda mivcet
       if (this.scenarios.length === 0) {
-        // tu meti scenario agar aris mashin ver moigo
         return;
       }
       currUser.scenario = this.scenarios.shift();
@@ -129,6 +122,53 @@ class Casino {
       currUser.balance += currUser.scenario[currUser.scenarioInd];
       currUser.scenarioInd++;
     }
+  }
+
+  viewUserDetails(user_id) {
+    if (!this.validate(user_id)) {
+      return;
+    }
+    console.log(this.users[user_id]);
+  }
+
+  listUsers() {
+    console.log("Registered Users:");
+    Object.keys(this.users).forEach((user_id) => {
+      console.log(user_id);
+    });
+  }
+
+  deleteUser(user_id) {
+    if (!this.users[user_id]) {
+      console.log("aseti momxmarebeli ar arsebobs");
+      return;
+    }
+    delete this.users[user_id];
+    console.log(`${user_id} gamoishala sistemaidan`);
+  }
+
+  resetCampaign(user_id) {
+    if (!this.validate(user_id)) {
+      return;
+    }
+    this.users[user_id].scenario = -1;
+    this.users[user_id].scenarioInd = 0;
+    console.log(`${user_id}-s kampania ganaukhda`);
+  }
+
+  saveUserData(filePath = "/data/user_data.json") {
+    fs.writeFileSync(filePath, JSON.stringify(this.users, null, 2));
+    console.log("User data was saved to file.");
+  }
+
+  loadUserData(filePath = "/data/user_data.json") {
+    if (!fs.existsSync(filePath)) {
+      console.log("File not found.");
+      return;
+    }
+    const data = fs.readFileSync(filePath, "utf-8");
+    this.users = JSON.parse(data);
+    console.log("User data loaded from file.");
   }
 
   executeCommands() {
@@ -151,12 +191,33 @@ class Casino {
         case "deposit":
           this.deposit(...args);
           break;
+        case "withdraw":
+          this.withdraw(...args);
+          break;
         case "bet":
           this.bet(...args);
           break;
         case "balance":
           const balance = this.balance(...args);
           results.push(balance);
+          break;
+        case "viewdetails":
+          this.viewUserDetails(...args);
+          break;
+        case "listusers":
+          this.listUsers();
+          break;
+        case "deleteuser":
+          this.deleteUser(...args);
+          break;
+        case "resetcampaign":
+          this.resetCampaign(...args);
+          break;
+        case "saveuserdata":
+          this.saveUserData(...args);
+          break;
+        case "loaduserdata":
+          this.loadUserData(...args);
           break;
         default:
           console.log("aseti command ar arsebobs");
